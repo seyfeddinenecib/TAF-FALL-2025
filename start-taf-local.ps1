@@ -3,7 +3,7 @@
 
 param(
     [Parameter(Mandatory=$false)]
-    [ValidateSet("full", "minimal", "core", "team1", "team2", "team3")]
+    [ValidateSet("full", "minimal", "core", "team1", "team2", "team3", "perf")]
     [string]$Mode = "full",
     
     [switch]$Build,
@@ -45,6 +45,7 @@ $services = @{
     "team1" = @("mongodb", "registry", "gateway", "auth", "backend-team1", "selenium-team1", "frontend-team1")
     "team2" = @("mongodb", "registry", "gateway", "auth", "backend-team2", "selenium-team2", "frontend-team2")
     "team3" = @("mongodb", "registry", "gateway", "auth", "backend-team3", "selenium-team3", "frontend-team3")
+    "perf" = @("mongodb", "registry", "gateway", "auth", "backend-team3", "frontend-team3")
 }
 
 $selectedServices = $services[$Mode]
@@ -71,73 +72,46 @@ if ($Build) {
 Write-Host "`nStarting services..." -ForegroundColor Yellow
 
 # Start in phases for better reliability
-Write-Host "  Phase 1: Starting databases..." -ForegroundColor Gray
-docker compose -f $composeFile up -d mongodb mysql
-Start-Sleep -Seconds 10
+$phase1Services = @("mongodb", "mysql") | Where-Object { $selectedServices -contains $_ }
+if ($phase1Services.Count -gt 0) {
+    Write-Host "  Phase 1: Starting databases..." -ForegroundColor Gray
+    docker compose -f $composeFile up -d $phase1Services
+    Start-Sleep -Seconds 10
+}
 
-Write-Host "  Phase 2: Starting registry..." -ForegroundColor Gray
-docker compose -f $composeFile up -d registry
-Start-Sleep -Seconds 30
+$phase2Services = @("registry") | Where-Object { $selectedServices -contains $_ }
+if ($phase2Services.Count -gt 0) {
+    Write-Host "  Phase 2: Starting registry..." -ForegroundColor Gray
+    docker compose -f $composeFile up -d $phase2Services
+    Start-Sleep -Seconds 30
+}
 
-Write-Host "  Phase 3: Starting gateway and core services..." -ForegroundColor Gray
-docker compose -f $composeFile up -d gateway auth user
-Start-Sleep -Seconds 20
+$phase3Services = @("gateway", "auth", "user") | Where-Object { $selectedServices -contains $_ }
+if ($phase3Services.Count -gt 0) {
+    Write-Host "  Phase 3: Starting gateway and core services..." -ForegroundColor Gray
+    docker compose -f $composeFile up -d $phase3Services
+    Start-Sleep -Seconds 20
+}
 
-if ($Mode -ne "minimal" -and $Mode -ne "core") {
+$backendServices = @("backend-team1", "backend-team2", "backend-team3") | Where-Object { $selectedServices -contains $_ }
+if ($backendServices.Count -gt 0) {
     Write-Host "  Phase 4: Starting testing backends..." -ForegroundColor Gray
-    
-    switch ($Mode) {
-        "full" {
-            docker compose -f $composeFile up -d backend-team1 backend-team2 backend-team3
-        }
-        "team1" {
-            docker compose -f $composeFile up -d backend-team1
-        }
-        "team2" {
-            docker compose -f $composeFile up -d backend-team2
-        }
-        "team3" {
-            docker compose -f $composeFile up -d backend-team3
-        }
-    }
+    docker compose -f $composeFile up -d $backendServices
     
     Start-Sleep -Seconds 20
-    
+
+$seleniumServices = @("selenium-team1", "selenium-team2", "selenium-team3") | Where-Object { $selectedServices -contains $_ }
+if ($seleniumServices.Count -gt 0) {
     Write-Host "  Phase 5: Starting Selenium grids..." -ForegroundColor Gray
-    
-    switch ($Mode) {
-        "full" {
-            docker compose -f $composeFile up -d selenium-team1 selenium-team2 selenium-team3
-        }
-        "team1" {
-            docker compose -f $composeFile up -d selenium-team1
-        }
-        "team2" {
-            docker compose -f $composeFile up -d selenium-team2
-        }
-        "team3" {
-            docker compose -f $composeFile up -d selenium-team3
-        }
-    }
+    docker compose -f $composeFile up -d $seleniumServices
     
     Start-Sleep -Seconds 10
-    
+}
+
+$frontendServices = @("frontend-team1", "frontend-team2", "frontend-team3") | Where-Object { $selectedServices -contains $_ }
+if ($frontendServices.Count -gt 0) {
     Write-Host "  Phase 6: Starting frontend applications..." -ForegroundColor Gray
-    
-    switch ($Mode) {
-        "full" {
-            docker compose -f $composeFile up -d frontend-team1 frontend-team2 frontend-team3
-        }
-        "team1" {
-            docker compose -f $composeFile up -d frontend-team1
-        }
-        "team2" {
-            docker compose -f $composeFile up -d frontend-team2
-        }
-        "team3" {
-            docker compose -f $composeFile up -d frontend-team3
-        }
-    }
+    docker compose -f $composeFile up -d $frontendServices
 }
 
 Write-Host "`n========================================" -ForegroundColor Green
@@ -156,6 +130,10 @@ Write-Host "  User Service:    http://localhost:8082" -ForegroundColor White
 
 if ($Mode -ne "minimal" -and $Mode -ne "core") {
     switch ($Mode) {
+        "perf" {
+            Write-Host "  Backend Team 3:  http://localhost:8085" -ForegroundColor White
+            Write-Host "  Frontend Team 3: http://localhost:4400" -ForegroundColor Yellow
+        }
         "full" {
             Write-Host "  Backend Team 1:  http://localhost:8083" -ForegroundColor White
             Write-Host "  Backend Team 2:  http://localhost:8084" -ForegroundColor White

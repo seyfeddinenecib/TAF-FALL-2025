@@ -31,6 +31,7 @@ L'interface est une application web utilisant le framework Angular.
 .\start-taf-local.ps1 -Mode team1 -Build   # Team 1 only
 .\start-taf-local.ps1 -Mode team2 -Build   # Team 2 only
 .\start-taf-local.ps1 -Mode team3 -Build   # Team 3 only
+.\start-taf-local.ps1 -Mode perf -Build    # Isolated performance stack (faster Team 3)
 ```
 
 ### Clean Up Everything
